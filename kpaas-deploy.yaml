@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kpaas
+---
+# ===============================
+# 1️⃣ MySQL Database
+# ===============================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: kpaas
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: kpaas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "Annyeong12!"
+            - name: MYSQL_DATABASE
+              value: "records"
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mysql-storage
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: kpaas
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  clusterIP: None
+---
+# ===============================
+# 2️⃣ DB Service (FastAPI)
+# ===============================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-service
+  namespace: kpaas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db-service
+  template:
+    metadata:
+      labels:
+        app: db-service
+    spec:
+      containers:
+        - name: db-service
+          image: registry.k2p.ktcloud.com/your-project/kpaas-db_service:latest
+          env:
+            - name: DB_HOST
+              value: mysql
+            - name: DB_USER
+              value: root
+            - name: DB_PASSWORD
+              value: Annyeong12!
+            - name: DB_NAME
+              value: records
+          ports:
+            - containerPort: 8002
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: kpaas
+spec:
+  selector:
+    app: db-service
+  ports:
+    - port: 8002
+      targetPort: 8002
+  clusterIP: None
+---
+# ===============================
+# 3️⃣ Save Service (FastAPI)
+# ===============================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: save-service
+  namespace: kpaas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: save-service
+  template:
+    metadata:
+      labels:
+        app: save-service
+    spec:
+      containers:
+        - name: save-service
+          image: registry.k2p.ktcloud.com/your-project/kpaas-save_service:latest # 수정
+          env:
+            - name: DB_HOST
+              value: db-service
+            - name: DB_USER
+              value: root
+            - name: DB_PASSWORD
+              value: Annyeong12!
+            - name: DB_NAME
+              value: records
+          ports:
+            - containerPort: 8001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: save-service
+  namespace: kpaas
+spec:
+  selector:
+    app: save-service
+  ports:
+    - port: 8001
+      targetPort: 8001
+  type: LoadBalancer
+---
+# ===============================
+# 4️⃣ Generate Service (FastAPI + GPT)
+# ===============================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: generate-service
+  namespace: kpaas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: generate-service
+  template:
+    metadata:
+      labels:
+        app: generate-service
+    spec:
+      containers:
+        - name: generate-service
+          image: registry.k2p.ktcloud.com/your-project/kpaas-generate_service:latest
+          env:
+            - name: OPENAI_API_KEY
+              value: "sk-xxxx"  # 여기에 실제 키 입력
+            - name: DB_HOST
+              value: db-service
+            - name: DB_USER
+              value: root
+            - name: DB_PASSWORD
+              value: Annyeong12!
+            - name: DB_NAME
+              value: records
+          ports:
+            - containerPort: 8003
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: generate-service
+  namespace: kpaas
+spec:
+  selector:
+    app: generate-service
+  ports:
+    - port: 8003
+      targetPort: 8003
+  type: LoadBalancer

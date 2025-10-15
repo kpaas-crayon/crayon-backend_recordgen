@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  # --- MySQL 데이터베이스 ---
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Annyeong12!
+      MYSQL_DATABASE: records
+      TZ: Asia/Seoul
+    volumes:
+      - ./db_service/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "3306:3306"
+
+  # --- DB 서비스 ---
+  db_service:
+    build: ./db_service
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=Annyeong12!
+      - DB_NAME=records
+    ports:
+      - "8002:8002"
+
+  # --- 기록 저장 서비스 ---
+  save_service:
+    build: ./save_service
+    restart: always
+    depends_on:
+      - db_service
+    ports:
+      - "8001:8001"
+
+  # --- 생기부 생성 서비스 ---
+  generate_service:
+    build: ./generate_service
+    restart: always
+    depends_on:
+      - db_service
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8003:8003"
